@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlapayBord</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    
+    <!-- Wadah pembungkus -->
+    <div id="game-container">
+        <!-- Canvas Game -->
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+        <!-- Menu Utama (Menimpa Canvas di awal) -->
+        <div id="main-menu">
+            <h1>FlapayBord</h1>
+            <p>Pilih Skin Karaktermu!</p>
+            
+            <div class="skin-selector">
+                <!-- Kita gunakan URL gambar sementara untuk contoh -->
+                <!-- Nanti ubah src="" menjadi: src="assets/images/skin1.png" dst -->
+                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Milo" class="skin-btn selected" data-skin="skin1" alt="Skin 1">
+                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Oreo" class="skin-btn" data-skin="skin2" alt="Skin 2">
+                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Bella" class="skin-btn" data-skin="skin3" alt="Skin 3">
+            </div>
+
+            <button id="start-btn">MULAI MAIN!</button>
+        </div>
+    </div>
+
+    <script src="js/game.js"></script>
+</body>
+</html>

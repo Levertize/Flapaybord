@@ -1,0 +1,94 @@
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #2c3e50;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Font yang lebih rapi */
+}
+
+/* Membungkus Canvas dan Menu dalam satu wadah */
+#game-container {
+    position: relative; /* Agar menu bisa menimpa canvas */
+}
+
+canvas {
+    background-color: #70c5ce;
+    border: 4px solid #ffffff;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    display: block; /* Mencegah jarak aneh di bawah canvas */
+}
+
+/* Desain Menu Utama */
+#main-menu {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8); /* Latar belakang hitam transparan */
+    border-radius: 15px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    text-align: center;
+}
+
+#main-menu h1 {
+    font-size: 36px;
+    margin-bottom: 10px;
+    color: #ffcc00;
+    text-shadow: 2px 2px 4px #000;
+}
+
+/* Wadah untuk tombol skin */
+.skin-selector {
+    display: flex;
+    gap: 15px;
+    margin: 20px 0;
+}
+
+/* Desain tombol skin */
+.skin-btn {
+    width: 60px;
+    height: 60px;
+    border: 3px solid white;
+    border-radius: 10px;
+    cursor: pointer;
+    background-color: #ecf0f1;
+    transition: transform 0.2s; /* Animasi saat kursor mendekat */
+}
+
+.skin-btn:hover {
+    transform: scale(1.1); /* Tombol membesar sedikit saat disentuh kursor */
+}
+
+/* Menandai skin yang sedang dipilih */
+.skin-btn.selected {
+    border-color: #ffcc00;
+    box-shadow: 0 0 15px #ffcc00;
+}
+
+/* Tombol Mulai */
+#start-btn {
+    padding: 10px 30px;
+    font-size: 20px;
+    font-weight: bold;
+    background-color: #2ecc71;
+    color: white;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    box-shadow: 0 5px 0 #27ae60; /* Efek tombol 3D */
+    margin-top: 20px;
+}
+
+#start-btn:active {
+    transform: translateY(5px); /* Efek tombol tertekan */
+    box-shadow: none;
+}
