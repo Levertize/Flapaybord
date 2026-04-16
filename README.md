@@ -39,7 +39,7 @@ Jika kamu ingin melihat atau memodifikasi kode game ini di komputermu sendiri:
 
 Clone repositori ini:
 
-git clone [https://github.com/](https://github.com/)[USERNAME_KAMU]/FlapayBord.git
+git clone https://github.com/https://github.com/Levertize/FlapayBord.git
 
 
 Buka folder proyek:
@@ -51,8 +51,8 @@ Buka file index.html menggunakan browser pilihanmu (Chrome, Firefox, Safari). Ti
 
 👨‍💻 Dikembangkan Oleh
 
-[NAMA_KAMU] - Web & Game Enthusiast
+Lev - Web & Game Enthusiast
 
-GitHub: @username_kamu
+GitHub: Levertize
 
 Proyek ini dibuat sebagai bagian dari portofolio untuk menunjukkan kemampuan dasar logika pemrograman web interaktif.
