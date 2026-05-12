@@ -3,6 +3,7 @@
 
 FlapayBord adalah sebuah web-based game yang terinspirasi dari mekanik klasik Flappy Bird, namun dibalut dengan tema karakter chibi yang imut. Game ini dibangun 100% menggunakan Vanilla JavaScript dan HTML5 Canvas tanpa menggunakan game engine pihak ketiga, untuk mendemonstrasikan pemahaman mendalam tentang Game Loop, fisika dasar, dan manipulasi elemen web.
 
+
 🎮 Mainkan Sekarang!
 
 Kamu bisa langsung memainkan game ini melalui browser tanpa perlu mengunduh apa pun:
