@@ -1,205 +1,285 @@
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+import { RGBShiftShader } from 'three/addons/shaders/RGBShiftShader.js';
+import { Water } from 'three/addons/objects/Water.js';
+import { Sky } from 'three/addons/objects/Sky.js';
 
-// --- ELEMEN MENU ---
-const mainMenu = document.getElementById("main-menu");
-const startBtn = document.getElementById("start-btn");
-const skinBtns = document.querySelectorAll(".skin-btn");
+/**
+ * FLAPAYBORD 3D ENGINE — OVERKILL EDITION
+ * Cinematic Hyper-Realism Pipeline
+ */
 
-// --- VARIABEL GAMBAR (ASET) ---
-const birdImg = new Image();
-birdImg.src = "https://api.dicebear.com/7.x/bottts/svg?seed=Milo"; 
+const WIDTH = 400;
+const HEIGHT = 600;
+const PIPE_GAP = 5.5;
+const PIPE_WIDTH = 1.6;
+const BIRD_SIZE = 0.65;
+const WORLD_SPEED_BASE = 0.16;
 
-const pipeImg = new Image();
-pipeImg.src = "https://placehold.co/50x600/2ecc71/2ecc71.png"; 
+const canvasWrapper = document.getElementById('canvas-wrapper');
+const mainMenu = document.getElementById('main-menu');
+const uiOverlay = document.getElementById('ui-overlay');
+const scoreDisplay = document.getElementById('score-display');
+const startBtn = document.getElementById('start-btn');
+const skinBtns = document.querySelectorAll('.skin-btn');
 
-// --- VARIABEL GAME ---
-let bird = { x: 50, y: 200, width: 40, height: 40, velocity: 0, gravity: 0.5, lift: -8 };
-let pipes = []; 
-const pipeWidth = 50; 
-const pipeGap = 150;  
+let score = 0;
+let isGameRunning = false;
+let isGameOver = false;
+let survivalTime = 0;
+let currentSpeed = WORLD_SPEED_BASE;
 
-// --- VARIABEL PROGRESIF (BARU) ---
-let score = 0;          
-let survivalTime = 0;         // Waktu bermain dalam detik
-let gameSpeed = 3;            // Kecepatan awal
-const basePipeDistance = 250; // Jarak horizontal antar pipa selalu konsisten
-let distanceToNextPipe = 0;   // Penghitung mundur jarak untuk memunculkan pipa baru
+let scene, camera, renderer, composer, clock = new THREE.Clock();
+let birdMesh, birdInnerCore, water, sky, sun;
+let pipes = [];
+let birdY = 0, birdVelocity = 0;
+const GRAVITY = -0.016, LIFT = 0.38;
 
-let isGameOver = false; 
-let isGameRunning = false; 
+// --- PROCEDURAL ASSET GENERATOR ---
+function createNoiseTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256; canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(256, 256);
+    for (let i = 0; i < imgData.data.length; i += 4) {
+        const val = Math.random() * 255;
+        imgData.data[i] = val; imgData.data[i+1] = val; imgData.data[i+2] = val; imgData.data[i+3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+}
+const noiseTex = createNoiseTexture();
 
-// --- LOGIKA GANTI SKIN ---
-skinBtns.forEach(btn => {
-    btn.addEventListener("click", function() {
-        skinBtns.forEach(b => b.classList.remove("selected"));
-        this.classList.add("selected");
-        birdImg.src = this.src; 
+// --- INITIALIZE OVERKILL ENGINE ---
+function init() {
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(70, WIDTH / HEIGHT, 0.1, 2000);
+    camera.position.set(0, 1, 16);
+
+    renderer = new THREE.WebGLRenderer({ powerPreference: "high-performance", antialias: false });
+    renderer.setSize(WIDTH, HEIGHT);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    canvasWrapper.appendChild(renderer.domElement);
+
+    // 1. PHYSICAL SKY & SUN
+    sky = new Sky();
+    sky.scale.setScalar(450000);
+    scene.add(sky);
+
+    sun = new THREE.Vector3();
+    const effectController = { turbidity: 10, rayleigh: 3, mieCoefficient: 0.005, mieDirectionalG: 0.7, elevation: 2, azimuth: 180 };
+    const uniforms = sky.material.uniforms;
+    uniforms['turbidity'].value = effectController.turbidity;
+    uniforms['rayleigh'].value = effectController.rayleigh;
+    uniforms['mieCoefficient'].value = effectController.mieCoefficient;
+    uniforms['mieDirectionalG'].value = effectController.mieDirectionalG;
+
+    const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
+    const theta = THREE.MathUtils.degToRad(effectController.azimuth);
+    sun.setFromSphericalCoords(1, phi, theta);
+    uniforms['sunPosition'].value.copy(sun);
+
+    // 2. REALISTIC OCEAN
+    const waterGeometry = new THREE.PlaneGeometry(10000, 10000);
+    water = new Water(waterGeometry, {
+        textureWidth: 512, textureHeight: 512,
+        waterNormals: new THREE.TextureLoader().load('https://threejs.org/examples/textures/waternormals.jpg', (tex) => {
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        }),
+        sunDirection: new THREE.Vector3(), sunColor: 0xffffff, waterColor: 0x001e0f, distortionScale: 3.7,
+        fog: scene.fog !== undefined
     });
-});
+    water.rotation.x = -Math.PI / 2;
+    water.position.y = -12;
+    scene.add(water);
 
-// --- TOMBOL MULAI MAIN ---
-startBtn.addEventListener("click", function() {
-    mainMenu.style.display = "none"; 
-    isGameRunning = true;            
-    resetGame();                     
-});
+    // 3. CINEMATIC POST-PROCESSING
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
 
-// --- FUNGSI MENGGAMBAR ---
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const bokehPass = new BokehPass(scene, camera, { focus: 16.0, aperture: 0.0001, maxblur: 0.01 });
+    composer.addPass(bokehPass);
 
-    if (!isGameRunning) return;
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(WIDTH, HEIGHT), 1.2, 0.4, 0.85);
+    composer.addPass(bloomPass);
 
-    // Menggambar Rintangan
-    for (let i = 0; i < pipes.length; i++) {
-        let p = pipes[i];
-        ctx.drawImage(pipeImg, p.x, p.topHeight - 600, pipeWidth, 600); 
-        ctx.drawImage(pipeImg, p.x, canvas.height - p.bottomHeight, pipeWidth, 600);
-    }
+    const rgbShift = new ShaderPass(RGBShiftShader);
+    rgbShift.uniforms['amount'].value = 0.0015;
+    composer.addPass(rgbShift);
 
-    // Menggambar Karakter
-    ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
+    composer.addPass(new SMAAPass(WIDTH * window.devicePixelRatio, HEIGHT * window.devicePixelRatio));
 
-    // Menggambar UI (Skor & Waktu)
-    ctx.fillStyle = "#ffffff";
-    ctx.shadowColor = "black";
-    ctx.shadowBlur = 5;
+    // 4. LIGHTING
+    scene.add(new THREE.HemisphereLight(0x443333, 0x111122, 0.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+    dirLight.position.copy(sun).multiplyScalar(100);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.set(2048, 2048);
+    dirLight.shadow.camera.set(-25, 25, 25, -25, 0.1, 500);
+    scene.add(dirLight);
+
+    createBird();
+    setupPipes();
+    animate();
+}
+
+function createBird() {
+    const group = new THREE.Group();
     
-    // Teks Skor
-    ctx.font = "bold 30px Arial";
-    ctx.fillText("Skor: " + score, 20, 40);
-    
-    // Teks Waktu (BARU)
-    ctx.font = "bold 20px Arial";
-    ctx.fillText("Waktu: " + Math.floor(survivalTime) + "s", 20, 70);
-    
-    ctx.shadowBlur = 0; // Matikan bayangan agar tidak bocor ke elemen lain
+    // Outer Glass Shell
+    const shellGeo = new THREE.IcosahedronGeometry(BIRD_SIZE, 3);
+    const shellMat = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff, metalness: 0, roughness: 0,
+        transmission: 1, thickness: 0.5,
+        ior: 1.5, reflectivity: 0.5, clearcoat: 1, clearcoatRoughness: 0
+    });
+    birdMesh = new THREE.Mesh(shellGeo, shellMat);
+    birdMesh.castShadow = true;
+    group.add(birdMesh);
 
-    // Tampilan Game Over
-    if (isGameOver) {
-        ctx.fillStyle = "red";
-        ctx.font = "bold 50px Arial";
-        ctx.shadowBlur = 5;
-        ctx.fillText("GAME OVER", 40, canvas.height / 2 - 20);
-        
-        ctx.fillStyle = "white";
-        ctx.font = "20px Arial";
-        ctx.shadowBlur = 5;
-        ctx.fillText("Klik untuk main lagi!", 110, canvas.height / 2 + 20);
-        
-        // Tampilkan hasil akhir
-        ctx.fillStyle = "yellow";
-        ctx.fillText("Bertahan: " + Math.floor(survivalTime) + " detik | Skor: " + score, 65, canvas.height / 2 + 60);
-        ctx.shadowBlur = 0;
+    // Inner Glowing Core
+    const coreGeo = new THREE.SphereGeometry(BIRD_SIZE * 0.4, 16, 16);
+    const coreMat = new THREE.MeshStandardMaterial({ color: 0x00d2ff, emissive: 0x00d2ff, emissiveIntensity: 5 });
+    birdInnerCore = new THREE.Mesh(coreGeo, coreMat);
+    group.add(birdInnerCore);
+
+    group.position.set(-5, 0, 0);
+    scene.add(group);
+    birdMesh.parentGroup = group;
+}
+
+function setupPipes() {
+    for (let i = 0; i < 5; i++) {
+        pipes.push(createPipePair(15 + i * 13));
     }
 }
 
-// --- FUNGSI LOGIKA (DIPERBARUI) ---
-function update() {
-    if (!isGameRunning || isGameOver) return; 
+function createPipePair(x) {
+    const topHeight = Math.random() * 8 + 3;
+    const bottomHeight = 22 - topHeight - PIPE_GAP;
 
-    // UPDATE WAKTU & KECEPATAN (BARU)
-    // Satu detik kira-kira 60 frame (1/60), jadi kita tambahkan seiring waktu
-    survivalTime += 1 / 60; 
+    const mat = new THREE.MeshStandardMaterial({ 
+        color: 0x333333, metalness: 0.8, roughness: 0.3,
+        roughnessMap: noiseTex, bumpMap: noiseTex, bumpScale: 0.05,
+        emissive: 0x11ff44, emissiveIntensity: 0.1
+    });
+
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(PIPE_WIDTH, PIPE_WIDTH, topHeight, 32), mat);
+    const bot = new THREE.Mesh(new THREE.CylinderGeometry(PIPE_WIDTH, PIPE_WIDTH, bottomHeight, 32), mat);
     
-    // Kecepatan bertambah secara bertahap seiring bertambahnya waktu
-    // Dari awal 3, perlahan naik menjadi 4, 5, dst.
-    gameSpeed = 3 + (survivalTime * 0.05); 
+    // Neon Rim Detail
+    const rimGeo = new THREE.TorusGeometry(PIPE_WIDTH, 0.1, 16, 32);
+    const rimMat = new THREE.MeshStandardMaterial({ color: 0x11ff44, emissive: 0x11ff44, emissiveIntensity: 2 });
+    const rimT = new THREE.Mesh(rimGeo, rimMat);
+    const rimB = new THREE.Mesh(rimGeo, rimMat);
+    rimT.rotation.x = Math.PI/2; rimB.rotation.x = Math.PI/2;
+    top.add(rimT); bot.add(rimB);
+    rimT.position.y = -topHeight/2; rimB.position.y = bottomHeight/2;
 
-    // Logika gravitasi
-    bird.velocity += bird.gravity;
-    bird.y += bird.velocity;
+    top.castShadow = bot.castShadow = top.receiveShadow = bot.receiveShadow = true;
+    scene.add(top); scene.add(bot);
 
-    // Batas layar atas dan bawah
-    if (bird.y + bird.height >= canvas.height) {
-        bird.y = canvas.height - bird.height;
-        isGameOver = true;
-    }
-    if (bird.y <= 0) { bird.y = 0; bird.velocity = 0; }
-
-    // LOGIKA PENCIPTAAN RINTANGAN BERBASIS JARAK (BARU)
-    // Jarak yang sudah ditempuh dikurangi sebesar kecepatan game
-    distanceToNextPipe -= gameSpeed;
-    
-    // Jika sudah menempuh jarak tertentu (distance <= 0), buat pipa baru!
-    if (distanceToNextPipe <= 0) {
-        let topHeight = Math.random() * (canvas.height - pipeGap - 100) + 50;
-        let bottomHeight = canvas.height - topHeight - pipeGap;
-        pipes.push({ x: canvas.width, topHeight: topHeight, bottomHeight: bottomHeight, passed: false });
-        
-        // Reset kembali penghitung jaraknya
-        distanceToNextPipe = basePipeDistance;
-    }
-
-    // Menggerakkan rintangan dan Cek Tabrakan
-    for (let i = 0; i < pipes.length; i++) {
-        let p = pipes[i];
-        
-        // Kecepatannya tidak statis lagi, melainkan mengikuti gameSpeed
-        p.x -= gameSpeed; 
-
-        // Deteksi menabrak pipa
-        if (bird.x < p.x + pipeWidth && bird.x + bird.width > p.x && 
-           (bird.y < p.topHeight || bird.y + bird.height > canvas.height - p.bottomHeight)) {
-            isGameOver = true; 
-        }
-
-        // Tambah skor jika lewat
-        if (p.x + pipeWidth < bird.x && !p.passed) {
-            score++;
-            p.passed = true;
-        }
-    }
-
-    // Bersihkan memori dari pipa yang sudah lewat layar
-    if (pipes.length > 0 && pipes[0].x + pipeWidth < 0) {
-        pipes.shift(); 
-    }
-}
-
-// --- FUNGSI KONTROL ---
-function jump() {
-    if (!isGameRunning) return; 
-
-    if (isGameOver) {
-        resetGame();
-    } else {
-        bird.velocity = bird.lift;
-    }
+    return { top, bot, x, passed: false, topH: topHeight, botH: bottomHeight };
 }
 
 function resetGame() {
-    bird.y = 200;
-    bird.velocity = 0;
-    pipes = [];
-    score = 0;
-    
-    // Reset parameter dinamis
-    survivalTime = 0;
-    gameSpeed = 3;
-    distanceToNextPipe = 0; // 0 agar pipa langsung muncul saat game mulai
-    
-    isGameOver = false;
+    birdY = 0; birdVelocity = 0; score = 0; survivalTime = 0;
+    currentSpeed = WORLD_SPEED_BASE; isGameOver = false;
+    scoreDisplay.innerText = "0";
+    birdMesh.parentGroup.position.y = 0;
+    pipes.forEach((p, i) => updatePipePosition(p, 15 + i * 13));
 }
 
-// Event Listener Keyboard & Mouse
-window.addEventListener("keydown", function(e) {
-    if(e.code === "Space" && e.target == document.body) {
-      e.preventDefault();
-    }
-});
+function updatePipePosition(p, x) {
+    const topHeight = Math.random() * 8 + 3;
+    const bottomHeight = 22 - topHeight - PIPE_GAP;
+    p.top.geometry.dispose(); p.bot.geometry.dispose();
+    p.top.geometry = new THREE.CylinderGeometry(PIPE_WIDTH, PIPE_WIDTH, topHeight, 32);
+    p.bot.geometry = new THREE.CylinderGeometry(PIPE_WIDTH, PIPE_WIDTH, bottomHeight, 32);
+    p.top.position.set(x, 11 - topHeight/2, 0);
+    p.bot.position.set(x, -11 + bottomHeight/2, 0);
+    p.top.children[0].position.y = -topHeight/2;
+    p.bot.children[0].position.y = bottomHeight/2;
+    p.x = x; p.topH = topHeight; p.botH = bottomHeight; p.passed = false;
+}
 
-window.addEventListener("mousedown", jump);
-window.addEventListener("keydown", function(event) {
-    if (event.code === "Space") { jump(); }
-});
+function update() {
+    if (!isGameRunning || isGameOver) return;
+    const delta = clock.getDelta();
+    survivalTime += delta;
+    currentSpeed = WORLD_SPEED_BASE + (survivalTime * 0.002);
 
-// --- GAME LOOP ---
-function gameLoop() {
+    water.material.uniforms[ 'time' ].value += 1.0 / 60.0;
+    
+    birdVelocity += GRAVITY; birdY += birdVelocity;
+    birdMesh.parentGroup.position.y = birdY;
+    birdMesh.rotation.x += 0.01; birdMesh.rotation.y += 0.02;
+    birdInnerCore.scale.setScalar(1 + Math.sin(survivalTime * 10) * 0.2);
+
+    if (birdY < -11 || birdY > 11) gameOver();
+
+    pipes.forEach(p => {
+        p.x -= currentSpeed;
+        p.top.position.x = p.bot.position.x = p.x;
+        if (p.x < -18) updatePipePosition(p, 45);
+
+        if (Math.abs(p.x - birdMesh.parentGroup.position.x) < (PIPE_WIDTH + BIRD_SIZE/2)) {
+            if (birdY > 11 - p.topH || birdY < -11 + p.botH) gameOver();
+        }
+
+        if (p.x < birdMesh.parentGroup.position.x && !p.passed) {
+            p.passed = true; score++; scoreDisplay.innerText = score;
+        }
+    });
+
+    camera.position.y += (birdY * 0.4 - camera.position.y) * 0.05;
+    camera.rotation.z = -birdVelocity * 0.2;
+}
+
+function gameOver() {
+    isGameOver = true;
+    birdInnerCore.material.emissiveIntensity = 20;
+    mainMenu.style.display = 'flex';
+    document.querySelector('#main-menu h1').innerText = "SYSTEM FAILURE";
+    document.querySelector('#main-menu p').innerText = `STABILITY: ${score} | RUNTIME: ${Math.floor(survivalTime)}s`;
+}
+
+function animate() {
+    requestAnimationFrame(animate);
     update();
-    draw();
-    requestAnimationFrame(gameLoop); 
+    composer.render();
 }
 
-gameLoop();
+startBtn.addEventListener('click', () => {
+    mainMenu.style.display = 'none';
+    uiOverlay.style.display = 'block';
+    if (isGameOver) resetGame();
+    isGameRunning = true;
+});
+
+skinBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+        skinBtns.forEach(b => b.classList.remove('selected'));
+        this.classList.add('selected');
+        const skin = this.dataset.skin;
+        const color = skin === 'skin1' ? 0x00d2ff : (skin === 'skin2' ? 0xffd700 : 0xff0044);
+        birdInnerCore.material.color.setHex(color);
+        birdInnerCore.material.emissive.setHex(color);
+    });
+});
+
+window.addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); birdVelocity = LIFT; } });
+window.addEventListener('mousedown', () => { if (isGameRunning && !isGameOver) birdVelocity = LIFT; });
+
+init();

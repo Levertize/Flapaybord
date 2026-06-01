@@ -2,34 +2,47 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlapayBord</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FlapayBord RTX — OVERKILL</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
+    
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
 </head>
 <body>
     
-    <!-- Wadah pembungkus -->
     <div id="game-container">
-        <!-- Canvas Game -->
-        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <!-- Three.js will inject its canvas here -->
+        <div id="canvas-wrapper"></div>
 
-        <!-- Menu Utama (Menimpa Canvas di awal) -->
+        <!-- Menu Utama -->
         <div id="main-menu">
-            <h1>FlapayBord</h1>
-            <p>Pilih Skin Karaktermu!</p>
+            <h1>FLAPAYBORD</h1>
+            <p>3D HYPER-REALISTIC EDITION</p>
             
             <div class="skin-selector">
-                <!-- Kita gunakan URL gambar sementara untuk contoh -->
-                <!-- Nanti ubah src="" menjadi: src="assets/images/skin1.png" dst -->
-                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Milo" class="skin-btn selected" data-skin="skin1" alt="Skin 1">
-                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Oreo" class="skin-btn" data-skin="skin2" alt="Skin 2">
-                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Bella" class="skin-btn" data-skin="skin3" alt="Skin 3">
+                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Milo" class="skin-btn selected" data-skin="skin1" alt="Cyan Neon">
+                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Oreo" class="skin-btn" data-skin="skin2" alt="Gold Metal">
+                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=Bella" class="skin-btn" data-skin="skin3" alt="Crimson Glow">
             </div>
 
-            <button id="start-btn">MULAI MAIN!</button>
+            <button id="start-btn">ENGAGE ENGINE</button>
+        </div>
+
+        <div id="ui-overlay">
+            <div id="score-display">0</div>
         </div>
     </div>
 
-    <script src="js/game.js"></script>
+    <script type="module" src="js/game.js"></script>
 </body>
 </html>
